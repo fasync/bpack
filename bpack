@@ -1,0 +1,147 @@
+#!/usr/bin/env python3.7
+
+import os
+import argparse
+
+class Builder:
+    world = "/usr/local/etc/poudriere.d/port-world"
+    repo = "PORTS"
+    
+    def __init__(self, jail = "122_amd64"):
+        self.jail = jail
+
+    def configure_packages(self):
+        cmd = "poudriere options -c -j " + self.jail + " -p " + self.repo + " -f " + self.world
+        ret = os.system(cmd)
+        if ret != 0:
+            print("Options sequence failed...")
+            exit(1)
+
+    def configure(self, pack):
+        cmd = "poudriere options -c -j " + self.jail + " -p " + self.repo + " " + pack
+        ret = os.system(cmd)
+        if ret != 0:
+            print("Options sequence failed...")
+            exit(1)
+
+    def read_ports(self):
+        with open(self.world, "r") as port_world:
+            ports = port_world.readlines()
+
+        return ports
+
+    def bulk(self):
+        cmd = "poudriere bulk -j " + self.jail + " -p " + self.repo + " -f " + self.world
+        ret = os.system(cmd)
+        if ret != 0:
+            print("Bulk sequence failed...")
+            exit(1)
+
+    def bulk_pack(self, pack):
+        cmd = "poudriere bulk -j " + self.jail + " -p " + self.repo + " " + pack
+        ret = os.system(cmd)
+        if ret != 0:
+            print("Bulk sequence failed...")
+            exit(1)
+
+    def lock(self, pack):
+        cmd = "pkg lock -y " + pack
+        os.system(cmd)
+
+    def unlock(self, pack):
+        cmd = "pkg unlock -y " + pack
+        os.system(cmd)
+
+    def lock_all(self):
+        ports = self.read_ports()
+
+        for port in ports:
+            self.lock(port)
+
+    def unlock_all(self):
+        ports = self.read_ports()
+
+        for port in ports:
+            self.unlock(port)
+            
+    def add_pack(self, pack):
+        with open(self.world, "a") as port_world:
+            port_world.write(pack)
+
+        self.bulk_pack(pack)
+        self.lock(pack)
+
+    def del_pack(self, pack):
+        ports = self.read_ports()
+
+        with open(self.world, "w") as port_world:
+            for port in ports:
+                if port.strip("\n") != pack:
+                    port_world.write(port)
+
+        self.unlock(pack)
+
+    def update(self):
+        cmd = "poudriere ports -u"
+        ret = os.system(cmd)
+        if ret != 0:
+            print("Update sequence failed...")
+            exit(1)
+
+        cmd = "pkg update"
+        ret = os.system(cmd)
+        if ret != 0:
+            print("Update sequence failed...")
+            exit(1)
+
+        # Build new packages by poudriere
+        self.bulk()
+
+        # Upgrade default binary packages
+        cmd = "pkg upgrade"
+        os.system(cmd)
+
+        # Unlock all poudriere ports
+        self.unlock_all()
+
+        # Upgrade poudriere ports
+        cmd = "pkg upgrade -r poudriere"
+        os.system(cmd)
+
+        # Lock all poudriere ports
+        self.lock_all()
+        
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser()
+
+    parser.add_argument("-u", help="Updates the system", action="store_true")
+    parser.add_argument("-b", help="Rebuild poudriere ports", action="store_true")
+    parser.add_argument("-a", help="Add a port to poudriere", type=str, required=False)
+    parser.add_argument("-r", help="Remove a port from poudriere", type=str, required=False)
+    parser.add_argument("-c", help="Configure ports", type=str, required=False)
+    
+    args = parser.parse_args()
+    builder = Builder()
+    
+    if args.u:
+        builder.update()
+        exit(0)
+
+    if args.b:
+        builder.bulk()
+        exit(0)
+
+    if args.a:
+        builder.add_pack(args.a)
+        exit(0)
+
+    if args.r:
+        builder.del_pack(args.r)
+        exit(0)
+
+    if args.c:
+        if args.c == "world":
+            builder.configure_packages()
+        else:
+            builder.configure(args.c)
+    
