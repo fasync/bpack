@@ -66,8 +66,9 @@ class Builder:
             
     def add_pack(self, pack):
         with open(self.world, "a") as port_world:
-            port_world.write(pack)
+            port_world.write(pack.rstrip())
 
+        self.configure(pack)
         self.bulk_pack(pack)
         self.lock(pack)
 
@@ -116,6 +117,7 @@ if __name__ == "__main__":
 
     parser.add_argument("-u", help="Updates the system", action="store_true")
     parser.add_argument("-b", help="Rebuild poudriere ports", action="store_true")
+    parser.add_argument("-w", help="Show all ports", action="store_true")
     parser.add_argument("-a", help="Add a port to poudriere", type=str, required=False)
     parser.add_argument("-r", help="Remove a port from poudriere", type=str, required=False)
     parser.add_argument("-c", help="Configure ports", type=str, required=False)
@@ -130,6 +132,13 @@ if __name__ == "__main__":
     if args.b:
         builder.bulk()
         exit(0)
+
+    if args.w:
+        ports = builder.read_ports()
+        for port in ports:
+            print(port.rstrip())
+        exit(0)
+        
 
     if args.a:
         builder.add_pack(args.a)
