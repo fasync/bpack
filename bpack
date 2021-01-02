@@ -52,6 +52,14 @@ class Builder:
         cmd = "pkg unlock -y " + pack
         os.system(cmd)
 
+    def install(self, pack):
+        cmd = "pkg install -r poudriere " + pack
+        os.system(cmd)
+
+    def remove(self, pack):
+        cmd = "pkg remove " + pack
+        os.system(cmd)
+
     def lock_all(self):
         ports = self.read_ports()
 
@@ -66,10 +74,11 @@ class Builder:
             
     def add_pack(self, pack):
         with open(self.world, "a") as port_world:
-            port_world.write(pack.rstrip())
+            port_world.write(pack)
 
         self.configure(pack)
         self.bulk_pack(pack)
+        self.install(pack)
         self.lock(pack)
 
     def del_pack(self, pack):
@@ -81,6 +90,7 @@ class Builder:
                     port_world.write(port)
 
         self.unlock(pack)
+        self.remove(pack)
 
     def update(self):
         cmd = "poudriere ports -u"
